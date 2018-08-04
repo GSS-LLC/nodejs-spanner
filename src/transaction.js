@@ -171,13 +171,15 @@ Transaction.createDeadlineError_ = function(err) {
  * @return {number}
  */
 Transaction.getRetryDelay_ = function(err) {
-  var retryInfo = err.metadata.get(RETRY_INFO_KEY)[0];
-  var retryDelay = RetryInfo.decode(retryInfo).retryDelay;
+  // var retryInfo = err.metadata.get(RETRY_INFO_KEY)[0];
+  // var retryDelay = RetryInfo.decode(retryInfo).retryDelay;
+  //
+  // var seconds = parseInt(retryDelay.seconds.toNumber(), 10) * 1000;
+  // var milliseconds = parseInt(retryDelay.nanos, 10) / 1e6;
+  //
+  // return seconds + milliseconds;
 
-  var seconds = parseInt(retryDelay.seconds.toNumber(), 10) * 1000;
-  var milliseconds = parseInt(retryDelay.nanos, 10) / 1e6;
-
-  return seconds + milliseconds;
+  return 1000;
 };
 
 /**
@@ -788,8 +790,7 @@ Transaction.prototype.shouldRetry_ = function(err) {
   return (
     this.isRetryableErrorCode_(err.code) &&
     is.fn(this.runFn_) &&
-    Date.now() - this.beginTime_ < this.timeout_ &&
-    err.metadata.get(RETRY_INFO_KEY).length > 0
+    Date.now() - this.beginTime_ < this.timeout_ // && err.metadata.get(RETRY_INFO_KEY).length > 0
   );
 };
 
