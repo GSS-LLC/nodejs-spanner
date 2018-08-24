@@ -16,25 +16,23 @@
 
 'use strict';
 
-var assert = require('assert');
-var async = require('async');
-var Buffer = require('safe-buffer').Buffer;
-var concat = require('concat-stream');
-var crypto = require('crypto');
-var exec = require('methmeth');
-var extend = require('extend');
-var is = require('is');
-var uuid = require('uuid');
+const assert = require('assert');
+const async = require('async');
+const concat = require('concat-stream');
+const crypto = require('crypto');
+const extend = require('extend');
+const is = require('is');
+const uuid = require('uuid');
 
-var Spanner = require('../');
+const {Spanner} = require('../');
 
-var PREFIX = 'gcloud-tests-';
-var spanner = new Spanner({projectId: process.env.GCLOUD_PROJECT});
+const PREFIX = 'gcloud-tests-';
+const spanner = new Spanner({projectId: process.env.GCLOUD_PROJECT});
 
 describe('Spanner', function() {
-  var instance = spanner.instance(generateName('instance'));
+  const instance = spanner.instance(generateName('instance'));
 
-  var INSTANCE_CONFIG = {
+  const INSTANCE_CONFIG = {
     config: 'regional-us-central1',
     nodes: 1,
     labels: {
@@ -58,11 +56,11 @@ describe('Spanner', function() {
   after(deleteTestResources);
 
   describe('types', function() {
-    var database = instance.database(generateName('database'));
-    var table = database.table('TypeCheck');
+    const database = instance.database(generateName('database'));
+    const table = database.table('TypeCheck');
 
     function insert(insertData, callback) {
-      var id = generateName('id');
+      const id = generateName('id');
 
       insertData.Key = id;
 
@@ -121,7 +119,7 @@ describe('Spanner', function() {
 
     describe('uneven rows', function() {
       it('should allow differently-ordered rows', function(done) {
-        var data = [
+        const data = [
           {
             Key: generateName('id'),
             BoolValue: true,
@@ -148,11 +146,11 @@ describe('Spanner', function() {
             function(err, rows) {
               assert.ifError(err);
 
-              var row1 = rows[0].toJSON();
+              const row1 = rows[0].toJSON();
               assert.deepStrictEqual(row1.IntValue, data[0].IntValue);
               assert.deepStrictEqual(row1.BoolValue, data[0].BoolValue);
 
-              var row2 = rows[1].toJSON();
+              const row2 = rows[1].toJSON();
               assert.deepStrictEqual(row2.IntValue, data[1].IntValue);
               assert.deepStrictEqual(row2.BoolValue, data[1].BoolValue);
 
@@ -165,11 +163,16 @@ describe('Spanner', function() {
 
     describe('structs', function() {
       it('should correctly decode structs', function(done) {
-        var query = 'SELECT ARRAY(SELECT as struct 1, "hello")';
+        const query = 'SELECT ARRAY(SELECT as struct 1, "hello")';
 
         database.run(query, function(err, rows) {
           assert.ifError(err);
-          assert.deepEqual(rows[0], [
+
+          const symbols = Object.getOwnPropertySymbols(rows[0][0].value[0]);
+          assert.strictEqual(symbols.length, 1);
+          assert.strictEqual(rows[0][0].value[0][symbols[0]], 'struct');
+
+          const expected = [
             {
               name: '',
               value: [
@@ -187,18 +190,33 @@ describe('Spanner', function() {
                 ],
               ],
             },
-          ]);
+          ];
+
+          assert.deepStrictEqual(
+            JSON.stringify(rows[0][0].value[0][0]),
+            JSON.stringify(expected[0].value[0][0])
+          );
+          assert.deepStrictEqual(
+            JSON.stringify(rows[0][0].value[0][1]),
+            JSON.stringify(expected[0].value[0][1])
+          );
+
           done();
         });
       });
 
       it('should correctly decode structs', function(done) {
-        var query =
+        const query =
           'SELECT 1 as id, ARRAY(select as struct 2 as id, "hello" as name)';
 
         database.run(query, function(err, rows) {
           assert.ifError(err);
-          assert.deepEqual(rows[0], [
+
+          const symbols = Object.getOwnPropertySymbols(rows[0][1].value[0]);
+          assert.strictEqual(symbols.length, 1);
+          assert.strictEqual(rows[0][1].value[0][symbols[0]], 'struct');
+
+          const expected = [
             {
               name: 'id',
               value: {
@@ -222,7 +240,21 @@ describe('Spanner', function() {
                 ],
               ],
             },
-          ]);
+          ];
+
+          assert.deepStrictEqual(
+            JSON.stringify(rows[0][0]),
+            JSON.stringify(expected[0])
+          );
+          assert.deepStrictEqual(
+            JSON.stringify(rows[0][1].value[0][0]),
+            JSON.stringify(expected[1].value[0][0])
+          );
+          assert.deepStrictEqual(
+            JSON.stringify(rows[0][1].value[0][1]),
+            JSON.stringify(expected[1].value[0][1])
+          );
+
           done();
         });
       });
@@ -248,7 +280,7 @@ describe('Spanner', function() {
       it('should write empty boolean array values', function(done) {
         insert({BoolArray: []}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().BoolArray, []);
+          assert.deepStrictEqual(row.toJSON().BoolArray, []);
           done();
         });
       });
@@ -256,7 +288,7 @@ describe('Spanner', function() {
       it('should write null boolean array values', function(done) {
         insert({BoolArray: [null]}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().BoolArray, [null]);
+          assert.deepStrictEqual(row.toJSON().BoolArray, [null]);
           done();
         });
       });
@@ -264,7 +296,7 @@ describe('Spanner', function() {
       it('should write boolean array values', function(done) {
         insert({BoolArray: [true, false]}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().BoolArray, [true, false]);
+          assert.deepStrictEqual(row.toJSON().BoolArray, [true, false]);
           done();
         });
       });
@@ -274,7 +306,7 @@ describe('Spanner', function() {
       it('should write int64 values', function(done) {
         insert({IntValue: Spanner.int(1234)}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().IntValue, 1234);
+          assert.deepStrictEqual(row.toJSON().IntValue, 1234);
           done();
         });
       });
@@ -288,7 +320,7 @@ describe('Spanner', function() {
       });
 
       it('should throw for of bounds integers', function(done) {
-        var value = '9223372036854775807';
+        const value = '9223372036854775807';
 
         insert({IntValue: value}, function(err, row) {
           assert.ifError(err);
@@ -302,11 +334,11 @@ describe('Spanner', function() {
       });
 
       it('should optionally wrap out of bounds integers', function(done) {
-        var value = '9223372036854775807';
+        const value = '9223372036854775807';
 
         insert({IntValue: value}, function(err, row) {
           assert.ifError(err);
-          var intValue = row.toJSON({wrapNumbers: true}).IntValue.value;
+          const intValue = row.toJSON({wrapNumbers: true}).IntValue.value;
           assert.strictEqual(intValue, value);
           done();
         });
@@ -315,7 +347,7 @@ describe('Spanner', function() {
       it('should write empty in64 array values', function(done) {
         insert({IntArray: []}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().IntArray, []);
+          assert.deepStrictEqual(row.toJSON().IntArray, []);
           done();
         });
       });
@@ -323,19 +355,19 @@ describe('Spanner', function() {
       it('should write null int64 array values', function(done) {
         insert({IntArray: [null]}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().IntArray, [null]);
+          assert.deepStrictEqual(row.toJSON().IntArray, [null]);
           done();
         });
       });
 
       it('should write int64 array values', function(done) {
-        var values = [1, 2, 3];
+        const values = [1, 2, 3];
 
         insert({IntArray: values}, function(err, row) {
           assert.ifError(err);
 
-          var expected = values.map(Spanner.int);
-          assert.deepEqual(row.toJSON().IntArray, expected);
+          const expected = values.map(Spanner.int);
+          assert.deepStrictEqual(row.toJSON().IntArray, expected);
           done();
         });
       });
@@ -345,7 +377,7 @@ describe('Spanner', function() {
       it('should write float64 values', function(done) {
         insert({FloatValue: Spanner.float(8.2)}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().FloatValue, 8.2);
+          assert.deepStrictEqual(row.toJSON().FloatValue, 8.2);
           done();
         });
       });
@@ -361,7 +393,7 @@ describe('Spanner', function() {
       it('should accept a Float object with an Int-like value', function(done) {
         insert({FloatValue: Spanner.float(8)}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().FloatValue, 8);
+          assert.deepStrictEqual(row.toJSON().FloatValue, 8);
           done();
         });
       });
@@ -369,7 +401,7 @@ describe('Spanner', function() {
       it('should handle Infinity', function(done) {
         insert({FloatValue: Infinity}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().FloatValue, Infinity);
+          assert.deepStrictEqual(row.toJSON().FloatValue, Infinity);
           done();
         });
       });
@@ -377,7 +409,7 @@ describe('Spanner', function() {
       it('should handle -Infinity', function(done) {
         insert({FloatValue: -Infinity}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().FloatValue, -Infinity);
+          assert.deepStrictEqual(row.toJSON().FloatValue, -Infinity);
           done();
         });
       });
@@ -393,7 +425,7 @@ describe('Spanner', function() {
       it('should write empty float64 array values', function(done) {
         insert({FloatArray: []}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().FloatArray, []);
+          assert.deepStrictEqual(row.toJSON().FloatArray, []);
           done();
         });
       });
@@ -401,19 +433,19 @@ describe('Spanner', function() {
       it('should write null float64 array values', function(done) {
         insert({FloatArray: [null]}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().FloatArray, [null]);
+          assert.deepStrictEqual(row.toJSON().FloatArray, [null]);
           done();
         });
       });
 
       it('should write float64 array values', function(done) {
-        var values = [1.2, 2.3, 3.4];
+        const values = [1.2, 2.3, 3.4];
 
         insert({FloatArray: values}, function(err, row) {
           assert.ifError(err);
 
-          var expected = values.map(Spanner.float);
-          assert.deepEqual(row.toJSON().FloatArray, expected);
+          const expected = values.map(Spanner.float);
+          assert.deepStrictEqual(row.toJSON().FloatArray, expected);
           done();
         });
       });
@@ -439,7 +471,7 @@ describe('Spanner', function() {
       it('should write empty string array values', function(done) {
         insert({StringArray: []}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().StringArray, []);
+          assert.deepStrictEqual(row.toJSON().StringArray, []);
           done();
         });
       });
@@ -447,7 +479,7 @@ describe('Spanner', function() {
       it('should write null string array values', function(done) {
         insert({StringArray: [null]}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().StringArray, [null]);
+          assert.deepStrictEqual(row.toJSON().StringArray, [null]);
           done();
         });
       });
@@ -455,7 +487,7 @@ describe('Spanner', function() {
       it('should write string array values', function(done) {
         insert({StringArray: ['abc', 'def']}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().StringArray, ['abc', 'def']);
+          assert.deepStrictEqual(row.toJSON().StringArray, ['abc', 'def']);
           done();
         });
       });
@@ -465,7 +497,7 @@ describe('Spanner', function() {
       it('should write bytes values', function(done) {
         insert({BytesValue: Buffer.from('abc')}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().BytesValue, Buffer.from('abc'));
+          assert.deepStrictEqual(row.toJSON().BytesValue, Buffer.from('abc'));
           done();
         });
       });
@@ -481,7 +513,7 @@ describe('Spanner', function() {
       it('should write empty bytes array values', function(done) {
         insert({BytesArray: []}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().BytesArray, []);
+          assert.deepStrictEqual(row.toJSON().BytesArray, []);
           done();
         });
       });
@@ -489,17 +521,17 @@ describe('Spanner', function() {
       it('should write null bytes array values', function(done) {
         insert({BytesArray: [null]}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().BytesArray, [null]);
+          assert.deepStrictEqual(row.toJSON().BytesArray, [null]);
           done();
         });
       });
 
       it('should write bytes array values', function(done) {
-        var values = [Buffer.from('a'), Buffer.from('b')];
+        const values = [Buffer.from('a'), Buffer.from('b')];
 
         insert({BytesArray: values}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().BytesArray, values);
+          assert.deepStrictEqual(row.toJSON().BytesArray, values);
           done();
         });
       });
@@ -507,11 +539,11 @@ describe('Spanner', function() {
 
     describe('timestamps', function() {
       it('should write timestamp values', function(done) {
-        var date = new Date();
+        const date = new Date();
 
         insert({TimestampValue: date}, function(err, row) {
           assert.ifError(err);
-          var time = row.toJSON().TimestampValue.getTime();
+          const time = row.toJSON().TimestampValue.getTime();
           assert.strictEqual(time, date.getTime());
           done();
         });
@@ -528,7 +560,7 @@ describe('Spanner', function() {
       it('should write empty timestamp array values', function(done) {
         insert({TimestampArray: []}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().TimestampArray, []);
+          assert.deepStrictEqual(row.toJSON().TimestampArray, []);
           done();
         });
       });
@@ -536,17 +568,17 @@ describe('Spanner', function() {
       it('should write null timestamp array values', function(done) {
         insert({TimestampArray: [null]}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().TimestampArray, [null]);
+          assert.deepStrictEqual(row.toJSON().TimestampArray, [null]);
           done();
         });
       });
 
       it('should write timestamp array values', function(done) {
-        var values = [new Date(), new Date('3-3-1933')];
+        const values = [new Date(), new Date('3-3-1933')];
 
         insert({TimestampArray: values}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().TimestampArray, values);
+          assert.deepStrictEqual(row.toJSON().TimestampArray, values);
           done();
         });
       });
@@ -554,11 +586,11 @@ describe('Spanner', function() {
 
     describe('dates', function() {
       it('should write date values', function(done) {
-        var date = Spanner.date();
+        const date = Spanner.date();
 
         insert({DateValue: date}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(Spanner.date(row.toJSON().DateValue), date);
+          assert.deepStrictEqual(Spanner.date(row.toJSON().DateValue), date);
           done();
         });
       });
@@ -574,7 +606,7 @@ describe('Spanner', function() {
       it('should write empty date array values', function(done) {
         insert({DateArray: []}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().DateArray, []);
+          assert.deepStrictEqual(row.toJSON().DateArray, []);
           done();
         });
       });
@@ -582,19 +614,19 @@ describe('Spanner', function() {
       it('should write null date array values', function(done) {
         insert({DateArray: [null]}, function(err, row) {
           assert.ifError(err);
-          assert.deepEqual(row.toJSON().DateArray, [null]);
+          assert.deepStrictEqual(row.toJSON().DateArray, [null]);
           done();
         });
       });
 
       it('should write date array values', function(done) {
-        var values = [Spanner.date(), Spanner.date('3-3-1933')];
+        const values = [Spanner.date(), Spanner.date('3-3-1933')];
 
         insert({DateArray: values}, function(err, row) {
           assert.ifError(err);
 
-          var returnedValues = row.toJSON().DateArray.map(Spanner.date);
-          assert.deepEqual(returnedValues, values);
+          const returnedValues = row.toJSON().DateArray.map(Spanner.date);
+          assert.deepStrictEqual(returnedValues, values);
 
           done();
         });
@@ -603,17 +635,17 @@ describe('Spanner', function() {
 
     describe('commit timestamp', function() {
       it('should accept the commit timestamp placeholder', function(done) {
-        var data = {CommitTimestamp: Spanner.COMMIT_TIMESTAMP};
+        const data = {CommitTimestamp: Spanner.COMMIT_TIMESTAMP};
 
         insert(data, function(err, row, commitResponse) {
           assert.ifError(err);
 
-          var timestampFromCommit = fromProtoToDate(
+          const timestampFromCommit = fromProtoToDate(
             commitResponse.commitTimestamp
           );
-          var timestampFromRead = row.toJSON().CommitTimestamp;
+          const timestampFromRead = row.toJSON().CommitTimestamp;
 
-          assert.deepEqual(timestampFromCommit, timestampFromRead);
+          assert.deepStrictEqual(timestampFromCommit, timestampFromRead);
           done();
         });
       });
@@ -637,9 +669,9 @@ describe('Spanner', function() {
     });
 
     it('should auto create an instance', function(done) {
-      var instance = spanner.instance(generateName('instance'));
+      const instance = spanner.instance(generateName('instance'));
 
-      var config = extend(
+      const config = extend(
         {
           autoCreate: true,
         },
@@ -664,7 +696,7 @@ describe('Spanner', function() {
       spanner
         .getInstances()
         .then(function(data) {
-          var instances = data[0];
+          const instances = data[0];
           assert(instances.length > 0);
           done();
         })
@@ -684,7 +716,7 @@ describe('Spanner', function() {
     });
 
     it('should update the metadata', function(done) {
-      var newData = {
+      const newData = {
         displayName: 'new-display-name',
       };
 
@@ -716,7 +748,7 @@ describe('Spanner', function() {
       spanner
         .getInstanceConfigs()
         .then(function(data) {
-          var instanceConfigs = data[0];
+          const instanceConfigs = data[0];
           assert(instanceConfigs.length > 0);
           done();
         })
@@ -737,7 +769,7 @@ describe('Spanner', function() {
   });
 
   describe('Databases', function() {
-    var database = instance.database(generateName('database'));
+    const database = instance.database(generateName('database'));
 
     before(function(done) {
       database.create(execAfterOperationComplete(done));
@@ -754,7 +786,7 @@ describe('Spanner', function() {
     });
 
     it('should auto create a database', function(done) {
-      var database = instance.database(generateName('database'));
+      const database = instance.database(generateName('database'));
 
       database.get({autoCreate: true}, function(err) {
         assert.ifError(err);
@@ -783,7 +815,7 @@ describe('Spanner', function() {
       instance
         .getDatabases()
         .then(function(data) {
-          var databases = data[0];
+          const databases = data[0];
           assert(databases.length > 0);
           done();
         })
@@ -803,7 +835,7 @@ describe('Spanner', function() {
     });
 
     it('should create a table', function(done) {
-      var createTableStatement = `
+      const createTableStatement = `
         CREATE TABLE Singers (
           SingerId INT64 NOT NULL,
           FirstName STRING(1024),
@@ -834,8 +866,8 @@ describe('Spanner', function() {
   });
 
   describe('Sessions', function() {
-    var database = instance.database(generateName('database'));
-    var session = database.session_();
+    const database = instance.database(generateName('database'));
+    const session = database.session();
 
     before(function(done) {
       async.series(
@@ -873,8 +905,8 @@ describe('Spanner', function() {
     });
 
     it('should get a session by name', function(done) {
-      var shortName = session.formattedName_.split('/').pop();
-      var sessionByShortName = database.session_(shortName);
+      const shortName = session.formattedName_.split('/').pop();
+      const sessionByShortName = database.session(shortName);
 
       sessionByShortName.getMetadata(function(err, metadataByName) {
         assert.ifError(err);
@@ -892,8 +924,8 @@ describe('Spanner', function() {
   });
 
   describe('Tables', function() {
-    var database = instance.database(generateName('database'));
-    var table = database.table('Singers');
+    const database = instance.database(generateName('database'));
+    const table = database.table('Singers');
 
     before(function() {
       return database
@@ -927,7 +959,7 @@ describe('Spanner', function() {
     });
 
     it('should throw an error for non-existant tables', function(done) {
-      var table = database.table(generateName('nope'));
+      const table = database.table(generateName('nope'));
 
       table.insert(
         {
@@ -954,8 +986,8 @@ describe('Spanner', function() {
     });
 
     it('should read rows as a stream', function(done) {
-      var id = generateName('id');
-      var name = generateName('name');
+      const id = generateName('id');
+      const name = generateName('name');
 
       table.insert(
         {
@@ -965,7 +997,7 @@ describe('Spanner', function() {
         function(err) {
           assert.ifError(err);
 
-          var rows = [];
+          let rows = [];
 
           table
             .createReadStream({
@@ -977,9 +1009,9 @@ describe('Spanner', function() {
               rows.push(row);
             })
             .on('end', function() {
-              rows = rows.map(exec('toJSON'));
+              rows = rows.map(x => x.toJSON());
 
-              assert.deepEqual(rows, [
+              assert.deepStrictEqual(rows, [
                 {
                   SingerId: id,
                   Name: name,
@@ -993,8 +1025,8 @@ describe('Spanner', function() {
     });
 
     it('should automatically convert to JSON', function(done) {
-      var id = generateName('id');
-      var name = generateName('name');
+      const id = generateName('id');
+      const name = generateName('name');
 
       table.insert(
         {
@@ -1004,7 +1036,7 @@ describe('Spanner', function() {
         function(err) {
           assert.ifError(err);
 
-          var rows = [];
+          const rows = [];
 
           table
             .createReadStream({
@@ -1017,7 +1049,7 @@ describe('Spanner', function() {
               rows.push(row);
             })
             .on('end', function() {
-              assert.deepEqual(rows, [
+              assert.deepStrictEqual(rows, [
                 {
                   SingerId: id,
                   Name: name,
@@ -1031,7 +1063,7 @@ describe('Spanner', function() {
     });
 
     it('should automatically convert to JSON with options', function(done) {
-      var id = generateName('id');
+      const id = generateName('id');
 
       table.insert(
         {
@@ -1041,7 +1073,7 @@ describe('Spanner', function() {
         function(err) {
           assert.ifError(err);
 
-          var rows = [];
+          const rows = [];
 
           table
             .createReadStream({
@@ -1063,8 +1095,8 @@ describe('Spanner', function() {
     });
 
     it('should insert and delete a row', function(done) {
-      var id = generateName('id');
-      var name = generateName('name');
+      const id = generateName('id');
+      const name = generateName('name');
 
       table.insert(
         {
@@ -1077,7 +1109,7 @@ describe('Spanner', function() {
           table.deleteRows([id], function(err) {
             assert.ifError(err);
 
-            var rows = [];
+            const rows = [];
 
             table
               .createReadStream({
@@ -1098,10 +1130,10 @@ describe('Spanner', function() {
     });
 
     it('should insert and delete multiple rows', function(done) {
-      var id = generateName('id');
-      var id2 = generateName('id2');
+      const id = generateName('id');
+      const id2 = generateName('id2');
 
-      var name = generateName('name');
+      const name = generateName('name');
 
       table.insert(
         [
@@ -1120,7 +1152,7 @@ describe('Spanner', function() {
           table.deleteRows([id, id2], function(err) {
             assert.ifError(err);
 
-            var rows = [];
+            const rows = [];
 
             table
               .createReadStream({
@@ -1141,15 +1173,15 @@ describe('Spanner', function() {
     });
 
     it('should insert and delete multiple composite key rows', function() {
-      var id1 = 1;
-      var name1 = generateName('name1');
+      const id1 = 1;
+      const name1 = generateName('name1');
 
-      var id2 = 2;
-      var name2 = generateName('name2');
+      const id2 = 2;
+      const name2 = generateName('name2');
 
-      var table = database.table('SingersComposite');
+      const table = database.table('SingersComposite');
 
-      var keys = [[id1, name1], [id2, name2]];
+      const keys = [[id1, name1], [id2, name2]];
 
       return table
         .create(
@@ -1180,7 +1212,7 @@ describe('Spanner', function() {
           });
         })
         .then(function(data) {
-          var rows = data[0];
+          const rows = data[0];
 
           assert.strictEqual(rows.length, 2);
 
@@ -1193,17 +1225,17 @@ describe('Spanner', function() {
           });
         })
         .then(function(data) {
-          var rows = data[0];
+          const rows = data[0];
           assert.strictEqual(rows.length, 0);
         });
     });
 
     it('should insert and query multiple rows', function(done) {
-      var id1 = generateName('id');
-      var name1 = generateName('name');
+      const id1 = generateName('id');
+      const name1 = generateName('name');
 
-      var id2 = generateName('id');
-      var name2 = generateName('name');
+      const id2 = generateName('id');
+      const name2 = generateName('name');
 
       table.insert(
         [
@@ -1225,7 +1257,7 @@ describe('Spanner', function() {
             // We just want the two most recent ones.
             rows.splice(0, rows.length - 2);
 
-            rows = rows.map(exec('toJSON'));
+            rows = rows.map(x => x.toJSON());
 
             assert.strictEqual(rows[0].SingerId, id1);
             assert.strictEqual(rows[0].Name, name1);
@@ -1240,12 +1272,12 @@ describe('Spanner', function() {
     });
 
     it('should insert then replace a row', function(done) {
-      var originalRow = {
+      const originalRow = {
         SingerId: generateName('id'),
         Name: generateName('name'),
       };
 
-      var replacedRow = {
+      const replacedRow = {
         SingerId: originalRow.SingerId,
       };
 
@@ -1263,7 +1295,7 @@ describe('Spanner', function() {
             function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0].toJSON();
+              const row = rows[0].toJSON();
 
               assert.strictEqual(row.SingerId, replacedRow.SingerId);
               assert.strictEqual(row.Name, null);
@@ -1276,12 +1308,12 @@ describe('Spanner', function() {
     });
 
     it('should insert then update a row', function(done) {
-      var originalRow = {
+      const originalRow = {
         SingerId: generateName('id'),
         Name: generateName('name'),
       };
 
-      var updatedRow = {
+      const updatedRow = {
         SingerId: originalRow.SingerId,
         Name: generateName('name'),
       };
@@ -1300,7 +1332,7 @@ describe('Spanner', function() {
             function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0].toJSON();
+              const row = rows[0].toJSON();
 
               assert.strictEqual(row.SingerId, updatedRow.SingerId);
               assert.strictEqual(row.Name, updatedRow.Name);
@@ -1313,20 +1345,20 @@ describe('Spanner', function() {
     });
 
     describe('insert & query', function() {
-      var DATE = new Date('1969-08-20');
+      const DATE = new Date('1969-08-20');
 
-      var ID = generateName('id');
-      var NAME = generateName('name');
-      var FLOAT = 8.2;
-      var INT = 2;
-      var INFO = Buffer.from(generateName('info'));
-      var CREATED = new Date();
-      var DOB = Spanner.date(DATE);
-      var ACCENTS = ['jamaican'];
-      var PHONE_NUMBERS = [123123123, 234234234];
-      var HAS_GEAR = true;
+      const ID = generateName('id');
+      const NAME = generateName('name');
+      const FLOAT = 8.2;
+      const INT = 2;
+      const INFO = Buffer.from(generateName('info'));
+      const CREATED = new Date();
+      const DOB = Spanner.date(DATE);
+      const ACCENTS = ['jamaican'];
+      const PHONE_NUMBERS = [123123123, 234234234];
+      const HAS_GEAR = true;
 
-      var INSERT_ROW = {
+      const INSERT_ROW = {
         SingerId: ID,
         Name: NAME,
         Float: FLOAT,
@@ -1339,7 +1371,7 @@ describe('Spanner', function() {
         HasGear: HAS_GEAR,
       };
 
-      var EXPECTED_ROW = extend(true, {}, INSERT_ROW);
+      const EXPECTED_ROW = extend(true, {}, INSERT_ROW);
       EXPECTED_ROW.DOB = DATE;
       EXPECTED_ROW.Float = FLOAT;
       EXPECTED_ROW.Int = INT;
@@ -1355,7 +1387,7 @@ describe('Spanner', function() {
       it('should query in callback mode', function(done) {
         database.run('SELECT * FROM Singers', function(err, rows) {
           assert.ifError(err);
-          assert.deepEqual(rows.shift().toJSON(), EXPECTED_ROW);
+          assert.deepStrictEqual(rows.shift().toJSON(), EXPECTED_ROW);
           done();
         });
       });
@@ -1364,15 +1396,15 @@ describe('Spanner', function() {
         database
           .run('SELECT * FROM Singers')
           .then(function(data) {
-            var rows = data[0];
-            assert.deepEqual(rows.shift().toJSON(), EXPECTED_ROW);
+            const rows = data[0];
+            assert.deepStrictEqual(rows.shift().toJSON(), EXPECTED_ROW);
             done();
           })
           .catch(done);
       });
 
       it('should query in stream mode', function(done) {
-        var row;
+        let row;
 
         database
           .runStream('SELECT * FROM Singers')
@@ -1382,7 +1414,7 @@ describe('Spanner', function() {
             this.end();
           })
           .on('end', function() {
-            assert.deepEqual(row.toJSON(), EXPECTED_ROW);
+            assert.deepStrictEqual(row.toJSON(), EXPECTED_ROW);
             done();
           });
       });
@@ -1399,7 +1431,7 @@ describe('Spanner', function() {
       });
 
       it('should query an array of structs', function(done) {
-        var query = `
+        const query = `
           SELECT ARRAY(SELECT AS STRUCT C1, C2
             FROM (SELECT 'a' AS C1, 1 AS C2 UNION ALL SELECT 'b' AS C1, 2 AS C2)
             ORDER BY C1 ASC)`;
@@ -1407,21 +1439,27 @@ describe('Spanner', function() {
         database.run(query, function(err, rows) {
           assert.ifError(err);
 
-          var values = rows[0][0].value;
+          const values = rows[0][0].value;
           assert.strictEqual(values.length, 2);
 
           assert.strictEqual(values[0][0].value, 'a');
-          assert.deepEqual(values[0][1].value, {value: 1});
+          assert.deepStrictEqual(
+            JSON.stringify(values[0][1].value),
+            JSON.stringify({value: '1'})
+          );
 
           assert.strictEqual(values[1][0].value, 'b');
-          assert.deepEqual(values[1][1].value, {value: 2});
+          assert.deepStrictEqual(
+            JSON.stringify(values[1][1].value),
+            JSON.stringify({value: '2'})
+          );
 
           done();
         });
       });
 
       it('should query an empty array of structs', function(done) {
-        var query = `
+        const query = `
           SELECT ARRAY(SELECT AS STRUCT * FROM (SELECT 'a', 1) WHERE 0 = 1)`;
 
         database.run(query, function(err, rows) {
@@ -1434,7 +1472,7 @@ describe('Spanner', function() {
       describe('params', function() {
         describe('boolean', function() {
           it('should bind the value', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: true,
@@ -1449,7 +1487,7 @@ describe('Spanner', function() {
           });
 
           it('should allow for null values', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1467,9 +1505,9 @@ describe('Spanner', function() {
           });
 
           it('should bind arrays', function(done) {
-            var values = [false, true, false];
+            const values = [false, true, false];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1478,15 +1516,15 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind empty arrays', function(done) {
-            var values = [];
+            const values = [];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1501,13 +1539,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind null arrays', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1522,7 +1560,7 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, null);
+              assert.deepStrictEqual(rows[0][0].value, null);
               done();
             });
           });
@@ -1530,7 +1568,7 @@ describe('Spanner', function() {
 
         describe('int64', function() {
           it('should bind the value', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: 1234,
@@ -1545,7 +1583,7 @@ describe('Spanner', function() {
           });
 
           it('should allow for null values', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1563,9 +1601,9 @@ describe('Spanner', function() {
           });
 
           it('should bind arrays', function(done) {
-            var values = [1, 2, 3, null];
+            const values = [1, 2, 3, null];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1575,19 +1613,22 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var expected = values.map(function(val) {
-                return is.number(val) ? {value: val} : val;
+              const expected = values.map(function(val) {
+                return is.number(val) ? {value: String(val)} : val;
               });
 
-              assert.deepEqual(rows[0][0].value, expected);
+              assert.strictEqual(
+                JSON.stringify(rows[0][0].value),
+                JSON.stringify(expected)
+              );
               done();
             });
           });
 
           it('should bind empty arrays', function(done) {
-            var values = [];
+            const values = [];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1602,13 +1643,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind null arrays', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1623,7 +1664,7 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, null);
+              assert.deepStrictEqual(rows[0][0].value, null);
               done();
             });
           });
@@ -1631,7 +1672,7 @@ describe('Spanner', function() {
 
         describe('float64', function() {
           it('should bind the value', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: 2.2,
@@ -1646,7 +1687,7 @@ describe('Spanner', function() {
           });
 
           it('should allow for null values', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1664,9 +1705,9 @@ describe('Spanner', function() {
           });
 
           it('should bind arrays', function(done) {
-            var values = [null, 1.1, 2.3, 3.5, null];
+            const values = [null, 1.1, 2.3, 3.5, null];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1676,19 +1717,22 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var expected = values.map(function(val) {
+              const expected = values.map(function(val) {
                 return is.number(val) ? {value: val} : val;
               });
 
-              assert.deepEqual(rows[0][0].value, expected);
+              assert.strictEqual(
+                JSON.stringify(rows[0][0].value),
+                JSON.stringify(expected)
+              );
               done();
             });
           });
 
           it('should bind empty arrays', function(done) {
-            var values = [];
+            const values = [];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1703,13 +1747,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind null arrays', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1724,13 +1768,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, null);
+              assert.deepStrictEqual(rows[0][0].value, null);
               done();
             });
           });
 
           it('should bind Infinity', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: Infinity,
@@ -1745,7 +1789,7 @@ describe('Spanner', function() {
           });
 
           it('should bind -Infinity', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: -Infinity,
@@ -1760,7 +1804,7 @@ describe('Spanner', function() {
           });
 
           it('should bind NaN', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: NaN,
@@ -1775,9 +1819,9 @@ describe('Spanner', function() {
           });
 
           it('should bind an array of Infinity and NaN', function(done) {
-            var values = [Infinity, -Infinity, NaN];
+            const values = [Infinity, -Infinity, NaN];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1787,11 +1831,14 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var expected = values.map(function(val) {
+              const expected = values.map(function(val) {
                 return is.number(val) ? {value: val + ''} : val;
               });
 
-              assert.deepEqual(rows[0][0].value, expected);
+              assert.strictEqual(
+                JSON.stringify(rows[0][0].value),
+                JSON.stringify(expected)
+              );
               done();
             });
           });
@@ -1799,7 +1846,7 @@ describe('Spanner', function() {
 
         describe('string', function() {
           it('should bind the value', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: 'abc',
@@ -1814,7 +1861,7 @@ describe('Spanner', function() {
           });
 
           it('should allow for null values', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1832,9 +1879,9 @@ describe('Spanner', function() {
           });
 
           it('should bind arrays', function(done) {
-            var values = ['a', 'b', 'c', null];
+            const values = ['a', 'b', 'c', null];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1843,15 +1890,15 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind empty arrays', function(done) {
-            var values = [];
+            const values = [];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1866,13 +1913,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind null arrays', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1887,7 +1934,7 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, null);
+              assert.deepStrictEqual(rows[0][0].value, null);
               done();
             });
           });
@@ -1895,9 +1942,9 @@ describe('Spanner', function() {
 
         describe('bytes', function() {
           it('should bind the value', function(done) {
-            var buffer = Buffer.from('abc');
+            const buffer = Buffer.from('abc');
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: buffer,
@@ -1906,13 +1953,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, buffer);
+              assert.deepStrictEqual(rows[0][0].value, buffer);
               done();
             });
           });
 
           it('should allow for null values', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1924,15 +1971,15 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, null);
+              assert.deepStrictEqual(rows[0][0].value, null);
               done();
             });
           });
 
           it('should bind arrays', function(done) {
-            var values = [Buffer.from('a'), Buffer.from('b'), null];
+            const values = [Buffer.from('a'), Buffer.from('b'), null];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1941,15 +1988,15 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind empty arrays', function(done) {
-            var values = [];
+            const values = [];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -1964,13 +2011,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind null arrays', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -1985,7 +2032,7 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, null);
+              assert.deepStrictEqual(rows[0][0].value, null);
               done();
             });
           });
@@ -1993,9 +2040,9 @@ describe('Spanner', function() {
 
         describe('timestamp', function() {
           it('should bind the value', function(done) {
-            var timestamp = new Date();
+            const timestamp = new Date();
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: timestamp,
@@ -2004,13 +2051,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, timestamp);
+              assert.deepStrictEqual(rows[0][0].value, timestamp);
               done();
             });
           });
 
           it('should allow for null values', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -2028,9 +2075,9 @@ describe('Spanner', function() {
           });
 
           it('should bind arrays', function(done) {
-            var values = [new Date(), new Date('3-3-1999'), null];
+            const values = [new Date(), new Date('3-3-1999'), null];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -2039,15 +2086,15 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind empty arrays', function(done) {
-            var values = [];
+            const values = [];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -2062,13 +2109,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind null arrays', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -2083,7 +2130,7 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, null);
+              assert.deepStrictEqual(rows[0][0].value, null);
               done();
             });
           });
@@ -2091,9 +2138,9 @@ describe('Spanner', function() {
 
         describe('date', function() {
           it('should bind the value', function(done) {
-            var date = Spanner.date();
+            const date = Spanner.date();
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: date,
@@ -2103,15 +2150,15 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var returnedDate = Spanner.date(rows[0][0].value);
-              assert.deepEqual(returnedDate, date);
+              const returnedDate = Spanner.date(rows[0][0].value);
+              assert.deepStrictEqual(returnedDate, date);
 
               done();
             });
           });
 
           it('should allow for null values', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -2129,13 +2176,13 @@ describe('Spanner', function() {
           });
 
           it('should bind arrays', function(done) {
-            var values = [
+            const values = [
               Spanner.date(),
               Spanner.date(new Date('3-3-1999')),
               null,
             ];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -2145,19 +2192,19 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var returnedValues = rows[0][0].value.map(function(val) {
+              const returnedValues = rows[0][0].value.map(function(val) {
                 return is.nil(val) ? val : Spanner.date(val);
               });
 
-              assert.deepEqual(returnedValues, values);
+              assert.deepStrictEqual(returnedValues, values);
               done();
             });
           });
 
           it('should bind empty arrays', function(done) {
-            var values = [];
+            const values = [];
 
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: values,
@@ -2172,13 +2219,13 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, values);
+              assert.deepStrictEqual(rows[0][0].value, values);
               done();
             });
           });
 
           it('should bind null arrays', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @v',
               params: {
                 v: null,
@@ -2193,7 +2240,7 @@ describe('Spanner', function() {
 
             database.run(query, function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0][0].value, null);
+              assert.deepStrictEqual(rows[0][0].value, null);
               done();
             });
           });
@@ -2201,7 +2248,7 @@ describe('Spanner', function() {
 
         describe('structs', function() {
           it('should bind a simple struct', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam.userf, @p4',
               params: {
                 structParam: Spanner.struct({
@@ -2215,7 +2262,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0].toJSON();
+              const row = rows[0].toJSON();
               assert.strictEqual(row.userf, 'bob');
 
               done();
@@ -2223,7 +2270,7 @@ describe('Spanner', function() {
           });
 
           it('should bind null structs', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam.userf is NULL',
               params: {
                 structParam: null,
@@ -2248,7 +2295,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0];
+              const row = rows[0];
               assert.strictEqual(row[0].value, true);
 
               done();
@@ -2256,7 +2303,7 @@ describe('Spanner', function() {
           });
 
           it('should bind nested structs', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam.structf.nestedf',
               params: {
                 structParam: Spanner.struct({
@@ -2270,7 +2317,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0].toJSON();
+              const row = rows[0].toJSON();
               assert.strictEqual(row.nestedf, 'bob');
 
               done();
@@ -2278,7 +2325,7 @@ describe('Spanner', function() {
           });
 
           it('should bind null nested structs', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam.structf.nestedf',
               params: {
                 structParam: null,
@@ -2305,7 +2352,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0].toJSON();
+              const row = rows[0].toJSON();
               assert.strictEqual(row.nestedf, null);
 
               done();
@@ -2313,7 +2360,7 @@ describe('Spanner', function() {
           });
 
           it('should bind empty structs', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam IS NULL',
               params: {
                 structParam: Spanner.struct(),
@@ -2323,7 +2370,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0];
+              const row = rows[0];
               assert.strictEqual(row[0].value, false);
 
               done();
@@ -2331,7 +2378,7 @@ describe('Spanner', function() {
           });
 
           it('should bind null structs with no fields', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam IS NULL',
               params: {
                 structParam: null,
@@ -2344,7 +2391,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0];
+              const row = rows[0];
               assert.strictEqual(row[0].value, true);
 
               done();
@@ -2352,7 +2399,7 @@ describe('Spanner', function() {
           });
 
           it('should bind structs with null fields', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam.f1',
               params: {
                 structParam: Spanner.struct({
@@ -2375,7 +2422,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0].toJSON();
+              const row = rows[0].toJSON();
               assert.strictEqual(row.f1, null);
 
               done();
@@ -2383,7 +2430,7 @@ describe('Spanner', function() {
           });
 
           it('should bind structs with duplicate fields', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam=STRUCT<f1 INT64, f1 INT64>(10, 11)',
               params: {
                 structParam: Spanner.struct([
@@ -2402,7 +2449,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0];
+              const row = rows[0];
               assert.strictEqual(row[0].value, true);
 
               done();
@@ -2410,7 +2457,7 @@ describe('Spanner', function() {
           });
 
           it('should bind structs with missing field names', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam=STRUCT<INT64>(5)',
               params: {
                 structParam: Spanner.struct([{value: Spanner.int(5)}]),
@@ -2420,7 +2467,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0];
+              const row = rows[0];
               assert.strictEqual(row[0].value, true);
 
               done();
@@ -2428,7 +2475,7 @@ describe('Spanner', function() {
           });
 
           it('should allow equality checks', function(done) {
-            var query = {
+            const query = {
               sql:
                 'SELECT @structParam=STRUCT<threadf INT64, userf STRING>(1, "bob")',
               params: {
@@ -2442,7 +2489,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0];
+              const row = rows[0];
               assert.strictEqual(row[0].value, true);
 
               done();
@@ -2450,7 +2497,7 @@ describe('Spanner', function() {
           });
 
           it('should allow nullness checks', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT @structParam IS NULL',
               params: {
                 structParam: Spanner.struct({
@@ -2463,7 +2510,7 @@ describe('Spanner', function() {
             database.run(query, function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0];
+              const row = rows[0];
               assert.strictEqual(row[0].value, false);
 
               done();
@@ -2471,7 +2518,7 @@ describe('Spanner', function() {
           });
 
           it('should allow an array of non-null structs', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT a.threadid FROM UNNEST(@arraysf) a',
               params: {
                 arraysf: [
@@ -2499,7 +2546,7 @@ describe('Spanner', function() {
           });
 
           it('should allow an array of structs with null fields', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT a.threadid FROM UNNEST(@structParam.arraysf) a',
               params: {
                 structParam: Spanner.struct({
@@ -2542,7 +2589,7 @@ describe('Spanner', function() {
           });
 
           it('should allow a null array of structs', function(done) {
-            var query = {
+            const query = {
               sql: 'SELECT a.threadid FROM UNNEST(@structParamArray) a',
               params: {
                 structParamArray: null,
@@ -2573,9 +2620,9 @@ describe('Spanner', function() {
       });
 
       describe('large reads', function() {
-        var table = database.table('LargeReads');
+        const table = database.table('LargeReads');
 
-        var expectedRow = {
+        const expectedRow = {
           Key: generateName('key'),
           StringValue: string(),
           StringArray: [string(), string(), string(), string()],
@@ -2584,7 +2631,7 @@ describe('Spanner', function() {
         };
 
         function string() {
-          var offset = Math.floor(Math.random() * 500);
+          const offset = Math.floor(Math.random() * 500);
 
           return Array(25000 + offset)
             .fill('The quick brown fox jumps over the lazy dog.')
@@ -2592,7 +2639,7 @@ describe('Spanner', function() {
         }
 
         function bytes() {
-          var offset = Math.floor(Math.random() * 2048);
+          const offset = Math.floor(Math.random() * 2048);
 
           return crypto.randomBytes(1024 * 1024 + offset);
         }
@@ -2634,17 +2681,17 @@ describe('Spanner', function() {
             function(err, rows) {
               assert.ifError(err);
 
-              var row = rows[0].toJSON();
+              const row = rows[0].toJSON();
 
               assert.strictEqual(row.Key, expectedRow.Key);
               assert.strictEqual(row.StringValue, expectedRow.StringValue);
-              assert.deepEqual(row.StringArray, expectedRow.StringArray);
+              assert.deepStrictEqual(row.StringArray, expectedRow.StringArray);
 
               row.BytesValue = base64ToBuffer(row.BytesValue);
               row.BytesArray = row.BytesArray.map(base64ToBuffer);
 
-              assert.deepEqual(row.BytesValue, expectedRow.BytesValue);
-              assert.deepEqual(row.BytesArray, expectedRow.BytesArray);
+              assert.deepStrictEqual(row.BytesValue, expectedRow.BytesValue);
+              assert.deepStrictEqual(row.BytesArray, expectedRow.BytesArray);
 
               done();
             }
@@ -2652,7 +2699,7 @@ describe('Spanner', function() {
         });
 
         it('should query large datasets', function(done) {
-          var query = {
+          const query = {
             sql: 'SELECT * FROM ' + table.name + ' WHERE Key = @key',
             params: {
               key: expectedRow.Key,
@@ -2662,17 +2709,17 @@ describe('Spanner', function() {
           database.run(query, function(err, rows) {
             assert.ifError(err);
 
-            var row = rows[0].toJSON();
+            const row = rows[0].toJSON();
 
             assert.strictEqual(row.Key, expectedRow.Key);
             assert.strictEqual(row.StringValue, expectedRow.StringValue);
-            assert.deepEqual(row.StringArray, expectedRow.StringArray);
+            assert.deepStrictEqual(row.StringArray, expectedRow.StringArray);
 
             row.BytesValue = base64ToBuffer(row.BytesValue);
             row.BytesArray = row.BytesArray.map(base64ToBuffer);
 
-            assert.deepEqual(row.BytesValue, expectedRow.BytesValue);
-            assert.deepEqual(row.BytesArray, expectedRow.BytesArray);
+            assert.deepStrictEqual(row.BytesValue, expectedRow.BytesValue);
+            assert.deepStrictEqual(row.BytesArray, expectedRow.BytesArray);
 
             done();
           });
@@ -2681,13 +2728,13 @@ describe('Spanner', function() {
     });
 
     describe('upsert', function() {
-      var ROW = {
+      const ROW = {
         SingerId: generateName('id'),
         Name: generateName('name'),
       };
 
       it('should update a row', function(done) {
-        var row = {
+        const row = {
           SingerId: ROW.SingerId,
           Name: generateName('name'),
         };
@@ -2705,7 +2752,7 @@ describe('Spanner', function() {
               },
               function(err, rows) {
                 assert.ifError(err);
-                assert.deepEqual(rows[0].toJSON(), ROW);
+                assert.deepStrictEqual(rows[0].toJSON(), ROW);
                 done();
               }
             );
@@ -2724,7 +2771,7 @@ describe('Spanner', function() {
             },
             function(err, rows) {
               assert.ifError(err);
-              assert.deepEqual(rows[0].toJSON(), ROW);
+              assert.deepStrictEqual(rows[0].toJSON(), ROW);
               done();
             }
           );
@@ -2733,9 +2780,9 @@ describe('Spanner', function() {
     });
 
     describe('read', function() {
-      var table = database.table('ReadTestTable');
+      const table = database.table('ReadTestTable');
 
-      var ALL_COLUMNS = ['Key', 'StringValue'];
+      const ALL_COLUMNS = ['Key', 'StringValue'];
 
       before(function() {
         return table
@@ -2753,9 +2800,9 @@ describe('Spanner', function() {
           })
           .then(onPromiseOperationComplete)
           .then(function() {
-            var data = [];
+            const data = [];
 
-            for (var i = 0; i < 15; ++i) {
+            for (let i = 0; i < 15; ++i) {
               data.push({
                 Key: 'k' + i,
                 StringValue: 'v' + i,
@@ -2796,7 +2843,7 @@ describe('Spanner', function() {
             assert.ifError(err);
             assert.strictEqual(rows.length, 1);
 
-            var row = rows[0].toJSON();
+            const row = rows[0].toJSON();
 
             assert.strictEqual(row.Key, 'k1');
             assert.strictEqual(row.StringValue, 'v1');
@@ -2853,7 +2900,7 @@ describe('Spanner', function() {
             assert.ifError(err);
             assert.strictEqual(rows.length, 1);
 
-            var row = rows[0].toJSON();
+            const row = rows[0].toJSON();
 
             assert.strictEqual(row.Key, 'k4');
           },
@@ -2992,7 +3039,7 @@ describe('Spanner', function() {
 
         // test using an index
         it(test.test + ' with an index', function(done) {
-          var query = extend(
+          const query = extend(
             {
               index: 'ReadByValue',
             },
@@ -3007,7 +3054,7 @@ describe('Spanner', function() {
 
           if (query.ranges) {
             query.ranges = query.ranges.map(function(range_) {
-              var range = extend({}, range_);
+              const range = extend({}, range_);
 
               Object.keys(range).forEach(function(bound) {
                 if (range[bound]) {
@@ -3027,10 +3074,10 @@ describe('Spanner', function() {
       });
 
       it('should read over invalid database fails', function(done) {
-        var database = instance.database(generateName('invalid'));
-        var table = database.table('ReadTestTable');
+        const database = instance.database(generateName('invalid'));
+        const table = database.table('ReadTestTable');
 
-        var query = {
+        const query = {
           keys: ['k1'],
           columns: ALL_COLUMNS,
         };
@@ -3042,9 +3089,9 @@ describe('Spanner', function() {
       });
 
       it('should read over invalid table fails', function(done) {
-        var table = database.table('ReadTestTablezzz');
+        const table = database.table('ReadTestTablezzz');
 
-        var query = {
+        const query = {
           keys: ['k1'],
           columns: ALL_COLUMNS,
         };
@@ -3056,7 +3103,7 @@ describe('Spanner', function() {
       });
 
       it('should read over invalid column fails', function(done) {
-        var query = {
+        const query = {
           keys: ['k1'],
           columns: ['ohnoes'],
         };
@@ -3068,7 +3115,7 @@ describe('Spanner', function() {
       });
 
       it('should fail if deadline exceeds', function(done) {
-        var query = {
+        const query = {
           keys: ['k1'],
           columns: ALL_COLUMNS,
           gaxOptions: {
@@ -3085,8 +3132,8 @@ describe('Spanner', function() {
   });
 
   describe('SessionPool', function() {
-    var database = instance.database(generateName('database'));
-    var table = database.table('Singers');
+    const database = instance.database(generateName('database'));
+    const table = database.table('Singers');
 
     before(function(done) {
       async.series(
@@ -3109,8 +3156,8 @@ describe('Spanner', function() {
     });
 
     it('should insert and query a row', function(done) {
-      var id = generateName('id');
-      var name = generateName('name');
+      const id = generateName('id');
+      const name = generateName('name');
 
       table.insert(
         {
@@ -3122,7 +3169,7 @@ describe('Spanner', function() {
 
           database.run('SELECT * FROM Singers', function(err, rows) {
             assert.ifError(err);
-            assert.deepEqual(rows.pop().toJSON(), {
+            assert.deepStrictEqual(rows.pop().toJSON(), {
               SingerId: id,
               Name: name,
             });
@@ -3133,11 +3180,11 @@ describe('Spanner', function() {
     });
 
     it('should insert and query multiple rows', function(done) {
-      var id1 = generateName('id');
-      var name1 = generateName('name');
+      const id1 = generateName('id');
+      const name1 = generateName('name');
 
-      var id2 = generateName('id');
-      var name2 = generateName('name');
+      const id2 = generateName('id');
+      const name2 = generateName('name');
 
       table.insert(
         [
@@ -3159,9 +3206,9 @@ describe('Spanner', function() {
             // We just want the two most recent ones.
             rows.splice(0, rows.length - 2);
 
-            rows = rows.map(exec('toJSON'));
+            rows = rows.map(x => x.toJSON());
 
-            assert.deepEqual(rows, [
+            assert.deepStrictEqual(rows, [
               {
                 SingerId: id1,
                 Name: name1,
@@ -3179,8 +3226,8 @@ describe('Spanner', function() {
     });
 
     it('should read rows as a stream', function(done) {
-      var id = generateName('id');
-      var name = generateName('name');
+      const id = generateName('id');
+      const name = generateName('name');
 
       table.insert(
         {
@@ -3190,7 +3237,7 @@ describe('Spanner', function() {
         function(err) {
           assert.ifError(err);
 
-          var rows = [];
+          let rows = [];
 
           table
             .createReadStream({
@@ -3202,9 +3249,9 @@ describe('Spanner', function() {
               rows.push(row);
             })
             .on('end', function() {
-              rows = rows.map(exec('toJSON'));
+              rows = rows.map(x => x.toJSON());
 
-              assert.deepEqual(rows, [
+              assert.deepStrictEqual(rows, [
                 {
                   SingerId: id,
                   Name: name,
@@ -3218,8 +3265,8 @@ describe('Spanner', function() {
     });
 
     it('should read rows', function(done) {
-      var id = generateName('id');
-      var name = generateName('name');
+      const id = generateName('id');
+      const name = generateName('name');
 
       table.insert(
         {
@@ -3237,9 +3284,9 @@ describe('Spanner', function() {
             function(err, rows) {
               assert.ifError(err);
 
-              rows = rows.map(exec('toJSON'));
+              rows = rows.map(x => x.toJSON());
 
-              assert.deepEqual(rows, [
+              assert.deepStrictEqual(rows, [
                 {
                   SingerId: id,
                   Name: name,
@@ -3255,10 +3302,10 @@ describe('Spanner', function() {
   });
 
   describe('Transactions', function() {
-    var database = instance.database(generateName('database'));
-    var table = database.table('TxnTable');
+    const database = instance.database(generateName('database'));
+    const table = database.table('TxnTable');
 
-    var records = [];
+    const records = [];
 
     before(function() {
       return database
@@ -3274,9 +3321,9 @@ describe('Spanner', function() {
         })
         .then(onPromiseOperationComplete)
         .then(function() {
-          var data = [];
+          const data = [];
 
-          for (var i = 0; i < 5; i++) {
+          for (let i = 0; i < 5; i++) {
             data.push({
               Key: 'k' + i,
               StringValue: 'v' + i,
@@ -3285,7 +3332,7 @@ describe('Spanner', function() {
 
           return data.reduce(function(promise, entry) {
             return promise.then(function() {
-              var record = extend(
+              const record = extend(
                 {
                   timestamp: new Date(),
                 },
@@ -3302,7 +3349,7 @@ describe('Spanner', function() {
 
     describe('read only', function() {
       it('should run a read only transaction', function(done) {
-        var options = {
+        const options = {
           readOnly: true,
           strong: true,
         };
@@ -3320,14 +3367,14 @@ describe('Spanner', function() {
       });
 
       it('should read keys from a table', function(done) {
-        var options = {
+        const options = {
           readOnly: true,
         };
 
         database.runTransaction(options, function(err, transaction) {
           assert.ifError(err);
 
-          var query = {
+          const query = {
             ranges: [
               {
                 startClosed: 'k0',
@@ -3347,7 +3394,7 @@ describe('Spanner', function() {
       });
 
       it('should accept a read timestamp', function(done) {
-        var options = {
+        const options = {
           readOnly: true,
           readTimestamp: records[1].timestamp,
         };
@@ -3360,7 +3407,7 @@ describe('Spanner', function() {
 
             assert.strictEqual(rows.length, 1);
 
-            var row = rows[0].toJSON();
+            const row = rows[0].toJSON();
 
             assert.strictEqual(row.Key, records[0].Key);
             assert.strictEqual(row.StringValue, records[0].StringValue);
@@ -3371,9 +3418,9 @@ describe('Spanner', function() {
       });
 
       it('should accept a min timestamp', function(done) {
-        var query = 'SELECT * FROM TxnTable';
+        const query = 'SELECT * FROM TxnTable';
 
-        var options = {
+        const options = {
           minReadTimestamp: new Date(),
         };
 
@@ -3387,7 +3434,7 @@ describe('Spanner', function() {
       });
 
       it('should accept an exact staleness', function(done) {
-        var options = {
+        const options = {
           readOnly: true,
           exactStaleness: Math.ceil((Date.now() - records[2].timestamp) / 1000),
         };
@@ -3399,7 +3446,7 @@ describe('Spanner', function() {
             assert.ifError(err);
             assert.strictEqual(rows.length, 2);
 
-            rows = rows.map(exec('toJSON'));
+            rows = rows.map(x => x.toJSON());
 
             assert.strictEqual(rows[0].Key, 'k0');
             assert.strictEqual(rows[0].StringValue, 'v0');
@@ -3412,9 +3459,9 @@ describe('Spanner', function() {
       });
 
       it('should accept a max staleness', function(done) {
-        var query = 'SELECT * FROM TxnTable';
+        const query = 'SELECT * FROM TxnTable';
 
-        var options = {
+        const options = {
           maxStaleness: 1,
         };
 
@@ -3428,7 +3475,7 @@ describe('Spanner', function() {
       });
 
       it('should do a strong read with concurrent updates', function(done) {
-        var options = {
+        const options = {
           readOnly: true,
           strong: true,
         };
@@ -3436,7 +3483,7 @@ describe('Spanner', function() {
         database.runTransaction(options, function(err, transaction) {
           assert.ifError(err);
 
-          var query = 'SELECT * FROM TxnTable';
+          const query = 'SELECT * FROM TxnTable';
 
           transaction.run(query, function(err, rows) {
             assert.ifError(err);
@@ -3453,7 +3500,7 @@ describe('Spanner', function() {
                 transaction.run(query, function(err, rows_) {
                   assert.ifError(err);
 
-                  var row = rows_.pop().toJSON();
+                  const row = rows_.pop().toJSON();
                   assert.strictEqual(row.StringValue, 'v4');
 
                   transaction.end(done);
@@ -3465,7 +3512,7 @@ describe('Spanner', function() {
       });
 
       it('should do an exact read with concurrent updates', function(done) {
-        var options = {
+        const options = {
           readOnly: true,
           readTimestamp: records[records.length - 1].timestamp,
         };
@@ -3473,12 +3520,12 @@ describe('Spanner', function() {
         database.runTransaction(options, function(err, transaction) {
           assert.ifError(err);
 
-          var query = 'SELECT * FROM TxnTable';
+          const query = 'SELECT * FROM TxnTable';
 
           transaction.run(query, function(err, rows) {
             assert.ifError(err);
 
-            var originalRows = extend(true, {}, rows);
+            const originalRows = extend(true, {}, rows);
 
             // Make arbitrary update.
             table.update(
@@ -3505,7 +3552,7 @@ describe('Spanner', function() {
       });
 
       it('should read with staleness & concurrent updates', function(done) {
-        var options = {
+        const options = {
           readOnly: true,
           exactStaleness: Math.ceil((Date.now() - records[1].timestamp) / 1000),
         };
@@ -3513,7 +3560,7 @@ describe('Spanner', function() {
         database.runTransaction(options, function(err, transaction) {
           assert.ifError(err);
 
-          var query = 'SELECT * FROM TxnTable';
+          const query = 'SELECT * FROM TxnTable';
 
           transaction.run(query, function(err, rows) {
             assert.ifError(err);
@@ -3545,7 +3592,7 @@ describe('Spanner', function() {
         database.runTransaction(function(err, transaction) {
           assert.ifError(err);
 
-          var rows = [
+          const rows = [
             {
               Key: 'k1',
               StringValue: 'hi',
@@ -3556,15 +3603,17 @@ describe('Spanner', function() {
             },
           ];
 
-          var expectedMessage = [
-            'Row at index 0 does not contain the correct number of columns.',
-            'Missing columns: ["NumberValue"]',
+          const expectedErrorMessage = [
+            `Row at index 0 does not contain the correct number of columns.`,
+            `Missing columns: ${JSON.stringify(['NumberValue'])}`,
           ].join('\n\n');
-
-          assert.throws(function() {
+          let caughtErrorMessage;
+          try {
             transaction.insert(table.name, rows);
-          }, expectedMessage);
-
+          } catch (e) {
+            caughtErrorMessage = e.message;
+          }
+          assert.strictEqual(caughtErrorMessage, expectedErrorMessage);
           transaction.end(done);
         });
       });
@@ -3594,7 +3643,7 @@ describe('Spanner', function() {
       });
 
       describe('concurrent transactions', function() {
-        var defaultRowValues = {
+        const defaultRowValues = {
           Key: 'k0',
           NumberValue: 0,
         };
@@ -3651,7 +3700,7 @@ describe('Spanner', function() {
                   return;
                 }
 
-                var row = rows[0].toJSON();
+                const row = rows[0].toJSON();
                 callback(null, row.NumberValue);
               }
             );
@@ -3707,7 +3756,7 @@ describe('Spanner', function() {
                   return;
                 }
 
-                var row = rows[0].toJSON();
+                const row = rows[0].toJSON();
                 callback(null, row.NumberValue);
               }
             );
@@ -3716,10 +3765,10 @@ describe('Spanner', function() {
       });
 
       it('should retry an aborted txn when reading fails', function(done) {
-        var query = `SELECT * FROM ${table.name}`;
-        var attempts = 0;
+        const query = `SELECT * FROM ${table.name}`;
+        let attempts = 0;
 
-        var expectedRow = {
+        const expectedRow = {
           Key: 'k888',
           NumberValue: null,
           StringValue: 'abc',
@@ -3731,7 +3780,7 @@ describe('Spanner', function() {
           transaction.run(query, function(err) {
             assert.ifError(err);
 
-            var action = attempts++ === 0 ? runOtherTransaction : wrap;
+            const action = attempts++ === 0 ? runOtherTransaction : wrap;
 
             action(function(err) {
               assert.ifError(err);
@@ -3747,9 +3796,9 @@ describe('Spanner', function() {
                 transaction.commit(function(err) {
                   assert.ifError(err);
 
-                  var lastRow = rows.pop().toJSON();
+                  const lastRow = rows.pop().toJSON();
 
-                  assert.deepEqual(lastRow, expectedRow);
+                  assert.deepStrictEqual(lastRow, expectedRow);
                   assert.strictEqual(attempts, 2);
 
                   done();
@@ -3784,10 +3833,10 @@ describe('Spanner', function() {
       });
 
       it('should retry an aborted txn when commit fails', function(done) {
-        var query = `SELECT * FROM ${table.name}`;
-        var attempts = 0;
+        const query = `SELECT * FROM ${table.name}`;
+        let attempts = 0;
 
-        var expectedRow = {
+        const expectedRow = {
           Key: 'k999',
           NumberValue: null,
           StringValue: 'abc',
@@ -3815,9 +3864,9 @@ describe('Spanner', function() {
             transaction.commit(function(err) {
               assert.ifError(err);
 
-              var lastRow = rows.pop().toJSON();
+              const lastRow = rows.pop().toJSON();
 
-              assert.deepEqual(lastRow, expectedRow);
+              assert.deepStrictEqual(lastRow, expectedRow);
               assert.strictEqual(attempts, 2);
 
               done();
@@ -3846,12 +3895,12 @@ describe('Spanner', function() {
       });
 
       it('should return a deadline error instead of aborted', function(done) {
-        var options = {
+        const options = {
           timeout: 10,
         };
 
-        var query = `SELECT * FROM ${table.name}`;
-        var attempts = 0;
+        const query = `SELECT * FROM ${table.name}`;
+        let attempts = 0;
 
         database.runTransaction(options, function(err, transaction) {
           if (attempts++ === 1) {
@@ -3923,15 +3972,15 @@ function generateName(resourceType) {
 }
 
 function onPromiseOperationComplete(data) {
-  var operation = data[data.length - 2];
+  const operation = data[data.length - 2];
   return operation.promise();
 }
 
 function execAfterOperationComplete(callback) {
   return function(err) {
     // arguments = [..., op, apiResponse]
-    var operation = arguments[arguments.length - 2];
-    var apiResponse = arguments[arguments.length - 1];
+    const operation = arguments[arguments.length - 2];
+    const apiResponse = arguments[arguments.length - 1];
 
     if (err) {
       callback(err, apiResponse);
@@ -3980,6 +4029,6 @@ function wait(time) {
 }
 
 function fromProtoToDate(obj) {
-  var milliseconds = parseInt(obj.nanos, 10) / 1e6;
+  const milliseconds = parseInt(obj.nanos, 10) / 1e6;
   return new Date(parseInt(obj.seconds, 10) * 1000 + milliseconds);
 }

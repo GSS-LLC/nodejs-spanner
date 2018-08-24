@@ -17,7 +17,7 @@
 
 const path = require(`path`);
 const request = require(`request`);
-const Spanner = require(`@google-cloud/spanner`);
+const {Spanner} = require(`@google-cloud/spanner`);
 const test = require(`ava`);
 const tools = require(`@google-cloud/nodejs-repo-tools`);
 
@@ -27,6 +27,7 @@ const schemaCmd = `node schema.js`;
 const indexingCmd = `node indexing.js`;
 const transactionCmd = `node transaction.js`;
 const timestampCmd = `node timestamp.js`;
+const structCmd = `node struct.js`;
 
 const cwd = path.join(__dirname, `..`);
 
@@ -448,7 +449,7 @@ test.serial(
 
 // query_new_table_with_timestamp
 test.serial(
-  `should query a example table with a non-null timestamp column and return matching rows`,
+  `should query an example table with a non-null timestamp column and return matching rows`,
   async t => {
     const results = await tools.runAsyncWithIO(
       `${timestampCmd} queryTableWithTimestamp ${INSTANCE_ID} ${DATABASE_ID} ${PROJECT_ID}`,
@@ -460,28 +461,91 @@ test.serial(
   }
 );
 
+// write_data_for_struct_queries
+test.serial(
+  `should insert rows into an example table for use with struct query examples`,
+  async t => {
+    const results = await tools.runAsyncWithIO(
+      `${structCmd} writeDataForStructQueries ${INSTANCE_ID} ${DATABASE_ID} ${PROJECT_ID}`,
+      cwd
+    );
+    const output = results.stdout + results.stderr;
+    t.regex(output, /Inserted data\./);
+  }
+);
+
+// query_with_struct_param
+test.serial(`should query an example table with a STRUCT param`, async t => {
+  const results = await tools.runAsyncWithIO(
+    `${structCmd} queryDataWithStruct ${INSTANCE_ID} ${DATABASE_ID} ${PROJECT_ID}`,
+    cwd
+  );
+  const output = results.stdout + results.stderr;
+  t.regex(output, /SingerId: 6/);
+});
+
+// query_with_array_of_struct_param
+test.serial(
+  `should query an example table with an array of STRUCT param`,
+  async t => {
+    const results = await tools.runAsyncWithIO(
+      `${structCmd} queryWithArrayOfStruct ${INSTANCE_ID} ${DATABASE_ID} ${PROJECT_ID}`,
+      cwd
+    );
+    const output = results.stdout + results.stderr;
+    t.regex(output, /SingerId: 6\nSingerId: 7/);
+  }
+);
+
+// query_with_struct_field_param
+test.serial(
+  `should query an example table with a STRUCT field param`,
+  async t => {
+    const results = await tools.runAsyncWithIO(
+      `${structCmd} queryStructField ${INSTANCE_ID} ${DATABASE_ID} ${PROJECT_ID}`,
+      cwd
+    );
+    const output = results.stdout + results.stderr;
+    t.regex(output, /SingerId: 6/);
+  }
+);
+
+// query_with_nested_struct_param
+test.serial(
+  `should query an example table with a nested STRUCT param`,
+  async t => {
+    const results = await tools.runAsyncWithIO(
+      `${structCmd} queryNestedStructField ${INSTANCE_ID} ${DATABASE_ID} ${PROJECT_ID}`,
+      cwd
+    );
+    const output = results.stdout + results.stderr;
+    t.regex(
+      output,
+      /SingerId: 6, SongName: Imagination\nSingerId: 9, SongName: Imagination/
+    );
+  }
+);
+
 function apiRequest(reqOpts) {
   return new Promise((resolve, reject) => {
-    spanner.auth.authorizeRequest(reqOpts, (err, reqOpts) => {
-      if (err) {
-        reject(err);
-        return;
-      }
+    spanner.auth
+      .authorizeRequest(reqOpts)
+      .then(reqOpts => {
+        request(reqOpts, (err, response) => {
+          if (err) {
+            reject(err);
+            return;
+          }
 
-      request(reqOpts, (err, response) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        try {
-          resolve(JSON.parse(response.body));
-        } catch (e) {
-          reject(e);
-          return;
-        }
-      });
-    });
+          try {
+            resolve(JSON.parse(response.body));
+          } catch (e) {
+            reject(e);
+            return;
+          }
+        });
+      })
+      .catch(reject);
   });
 }
 

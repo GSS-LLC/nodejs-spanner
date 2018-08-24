@@ -3,32 +3,24 @@ workflows:
   version: 2
   tests:
     jobs: &workflow_jobs
-      - node4:
+      - node6:
           filters: &all_commits
             tags:
               only: /.*/
-      - node6:
-          filters: *all_commits
       - node8:
-          filters: *all_commits
-      - node9:
           filters: *all_commits
       - node10:
           filters: *all_commits
       - lint:
           requires:
-            - node4
             - node6
             - node8
-            - node9
             - node10
           filters: *all_commits
       - docs:
           requires:
-            - node4
             - node6
             - node8
-            - node9
             - node10
           filters: *all_commits
       - system_tests:
@@ -62,52 +54,24 @@ workflows:
               only: master
     jobs: *workflow_jobs
 jobs:
-  node4:
+  node6:
     docker:
-      - image: 'node:4'
+      - image: 'node:6'
         user: node
     steps: &unit_tests_steps
-      - checkout
-      - run: &remove_package_lock
-          name: Remove package-lock.json if needed.
-          command: |
-            WORKFLOW_NAME=`python .circleci/get_workflow_name.py`
-            echo "Workflow name: $WORKFLOW_NAME"
-            if [ "$WORKFLOW_NAME" = "nightly" ]; then
-              echo "Nightly build detected, removing package-lock.json."
-              rm -f package-lock.json samples/package-lock.json
-            else
-              echo "Not a nightly build, skipping this step."
-            fi
+      - checkout 
       - run: &npm_install_and_link
           name: Install and link the module
           command: |-
             mkdir -p /home/node/.npm-global
             npm install
-            npm link
-            chmod +x node_modules/@google-cloud/nodejs-repo-tools/bin/tools
           environment:
             NPM_CONFIG_PREFIX: /home/node/.npm-global
-      - run:
-          name: Run unit tests.
-          command: npm test
-      - run:
-          name: Submit coverage data to codecov.
-          command: node_modules/.bin/codecov
-          when: always
-  node6:
-    docker:
-      - image: 'node:6'
-        user: node
-    steps: *unit_tests_steps
+      - run: npm test
+      - run: node_modules/.bin/codecov
   node8:
     docker:
       - image: 'node:8'
-        user: node
-    steps: *unit_tests_steps
-  node9:
-    docker:
-      - image: 'node:9'
         user: node
     steps: *unit_tests_steps
   node10:
@@ -117,19 +81,17 @@ jobs:
     steps: *unit_tests_steps
   lint:
     docker:
-      - image: 'node:8'
+      - image: 'node:10'
         user: node
     steps:
       - checkout
-      - run: *remove_package_lock
       - run: *npm_install_and_link
       - run: &samples_npm_install_and_link
           name: Link the module being tested to the samples.
           command: |
             cd samples/
-            npm link @google-cloud/spanner
             npm install
-            cd ..
+            npm link ../
           environment:
             NPM_CONFIG_PREFIX: /home/node/.npm-global
       - run:
@@ -139,22 +101,20 @@ jobs:
             NPM_CONFIG_PREFIX: /home/node/.npm-global
   docs:
     docker:
-      - image: 'node:8'
+      - image: 'node:10'
         user: node
     steps:
       - checkout
-      - run: *remove_package_lock
       - run: *npm_install_and_link
       - run:
           name: Build documentation.
           command: npm run docs
   sample_tests:
     docker:
-      - image: 'node:8'
+      - image: 'node:10'
         user: node
     steps:
       - checkout
-      - run: *remove_package_lock
       - run:
           name: Decrypt credentials.
           command: |
@@ -177,11 +137,10 @@ jobs:
     working_directory: /home/node/spanner-samples
   system_tests:
     docker:
-      - image: 'node:8'
+      - image: 'node:10'
         user: node
     steps:
       - checkout
-      - run: *remove_package_lock
       - run:
           name: Decrypt credentials.
           command: |
@@ -201,13 +160,9 @@ jobs:
           when: always
   publish_npm:
     docker:
-      - image: 'node:8'
+      - image: 'node:10'
         user: node
     steps:
       - checkout
-      - run:
-          name: Set NPM authentication.
-          command: 'echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc'
-      - run:
-          name: Publish the module to npm.
-          command: npm publish
+      - run: 'echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc'
+      - run: npm publish

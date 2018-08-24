@@ -1,6 +1,7 @@
 **/*.log
 **/node_modules
 .coverage
+.idea
 .nyc_output
 .idea
 docs/
@@ -12,3 +13,6 @@ system-test/*key.json
 .DS_Store
 google-cloud-logging-winston-*.tgz
 google-cloud-logging-bunyan-*.tgz
+package-lock.json
+.vscode
+yarn.lock
