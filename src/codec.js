@@ -16,55 +16,55 @@
 
 'use strict';
 
-var codec = module.exports;
+const codec = module.exports;
 
-var arrify = require('arrify');
-var commonGrpc = require('@google-cloud/common-grpc');
-var extend = require('extend');
-var is = require('is');
+const arrify = require('arrify');
+const {Service} = require('@google-cloud/common-grpc');
+const extend = require('extend');
+const is = require('is');
 
-function SpannerDate(value) {
-  if (arguments.length > 1) {
-    throw new TypeError(
-      [
-        'The spanner.date function accepts a Date object or a',
-        "single argument parseable by Date's constructor.",
-      ].join(' ')
-    );
+class SpannerDate {
+  constructor(value) {
+    if (arguments.length > 1) {
+      throw new TypeError(
+        [
+          'The spanner.date function accepts a Date object or a',
+          "single argument parseable by Date's constructor.",
+        ].join(' ')
+      );
+    }
+    if (is.undefined(value)) {
+      value = new Date();
+    }
+    this.value = new Date(value).toJSON().replace(/T.+/, '');
   }
-
-  if (is.undefined(value)) {
-    value = new Date();
-  }
-
-  this.value = new Date(value).toJSON().replace(/T.+/, '');
 }
 
 codec.SpannerDate = SpannerDate;
 
-function Float(value) {
-  this.value = value;
+class Float {
+  constructor(value) {
+    this.value = value;
+  }
+  valueOf() {
+    return parseFloat(this.value);
+  }
 }
-
-Float.prototype.valueOf = function() {
-  return parseFloat(this.value);
-};
 
 codec.Float = Float;
 
-function Int(value) {
-  this.value = value.toString();
-}
-
-Int.prototype.valueOf = function() {
-  var number = Number(this.value);
-
-  if (number > Number.MAX_SAFE_INTEGER) {
-    throw new Error('Integer ' + this.value + ' is out of bounds.');
+class Int {
+  constructor(value) {
+    this.value = value.toString();
   }
-
-  return number;
-};
+  valueOf() {
+    const number = Number(this.value);
+    if (number > Number.MAX_SAFE_INTEGER) {
+      throw new Error('Integer ' + this.value + ' is out of bounds.');
+    }
+    return number;
+  }
+}
 
 codec.Int = Int;
 
@@ -76,10 +76,10 @@ codec.Int = Int;
  * @private
  *
  * @example
- * var struct = [];
+ * const struct = [];
  * struct[TYPE] = 'struct';
  */
-var TYPE = Symbol();
+const TYPE = Symbol();
 
 codec.TYPE = TYPE;
 
@@ -90,7 +90,7 @@ codec.TYPE = TYPE;
  * @private
  */
 function Struct() {
-  var struct = [];
+  const struct = [];
 
   struct[TYPE] = Struct.TYPE;
 
@@ -118,7 +118,7 @@ Struct.TYPE = 'struct';
  * @return {Struct}
  */
 Struct.fromArray = function(arr) {
-  var struct = new Struct();
+  const struct = new Struct();
 
   struct.push.apply(struct, arr);
 
@@ -134,10 +134,10 @@ Struct.fromArray = function(arr) {
  * @return {Struct}
  */
 Struct.fromJSON = function(json) {
-  var struct = new Struct();
+  const struct = new Struct();
 
   Object.keys(json || {}).forEach(function(name) {
-    var value = json[name];
+    const value = json[name];
     struct.push({name, value});
   });
 
@@ -172,14 +172,14 @@ function generateToJSONFromRow(row) {
     );
 
     return row.reduce(function(serializedRow, keyVal) {
-      var name = keyVal.name;
-      var value = keyVal.value;
+      const name = keyVal.name;
+      let value = keyVal.value;
 
       if (!name) {
         return serializedRow;
       }
 
-      var isNumber = value instanceof Float || value instanceof Int;
+      const isNumber = value instanceof Float || value instanceof Int;
       if (!options.wrapNumbers && isNumber) {
         try {
           value = value.valueOf();
@@ -268,7 +268,7 @@ codec.decode = decode;
  */
 function encode(value) {
   function preEncode(value) {
-    var numberShouldBeStringified =
+    const numberShouldBeStringified =
       (!(value instanceof Float) && is.int(value)) ||
       value instanceof Int ||
       is.infinite(value) ||
@@ -289,7 +289,7 @@ function encode(value) {
     } else if (is.array(value)) {
       value = value.map(preEncode);
     } else if (is.object(value) && is.fn(value.hasOwnProperty)) {
-      for (var prop in value) {
+      for (const prop in value) {
         if (value.hasOwnProperty(prop)) {
           value[prop] = preEncode(value[prop]);
         }
@@ -303,7 +303,7 @@ function encode(value) {
     return value;
   }
 
-  return commonGrpc.Service.encodeValue_(preEncode(value));
+  return Service.encodeValue_(preEncode(value));
 }
 
 codec.encode = encode;
@@ -325,7 +325,7 @@ function getType(field) {
     return 'bool';
   }
 
-  var isSpecialNumber =
+  const isSpecialNumber =
     is.infinite(field) || (is.number(field) && isNaN(field));
 
   if (is.decimal(field) || isSpecialNumber || field instanceof Float) {
@@ -394,7 +394,7 @@ codec.getType = getType;
  *
  * @private
  */
-var TYPES = [
+const TYPES = [
   'unspecified',
   'bool',
   'int64',
@@ -473,7 +473,7 @@ function encodeRead(query) {
     };
   }
 
-  var encoded = extend({}, query);
+  const encoded = extend({}, query);
 
   if (query.keys || query.ranges) {
     encoded.keySet = {};
@@ -490,9 +490,9 @@ function encodeRead(query) {
 
   if (query.ranges) {
     encoded.keySet.ranges = arrify(query.ranges).map(function(rawRange) {
-      var range = extend({}, rawRange);
+      const range = extend({}, rawRange);
 
-      for (var bound in range) {
+      for (const bound in range) {
         range[bound] = {
           values: arrify(range[bound]).map(codec.encode),
         };
